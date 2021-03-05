@@ -1,0 +1,5 @@
+outlook overcast, yes
+outlook sunny, humimdity normal, yes
+outlook sunny, humimdity high, no
+outlook rain, wind strong, no
+outlook rain, wind weak, yes
