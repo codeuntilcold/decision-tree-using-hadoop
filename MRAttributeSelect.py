@@ -11,62 +11,63 @@ class MRMostUsedWord(MRJob):
     def steps(self):
         return [
             MRStep(mapper=self.mapper_get_attr,
-                   combiner=self.combiner_count_words,
-                   reducer=self.reducer_count_words),
-            MRStep(reducer=self.reducer_find_max_word)
+                   combiner=self.combiner_count,
+                   reducer=self.reducer_count),
+            MRStep(reducer=self.reducer_find_max_p)
         ]
 
+    # yield each attribute, class value in the line
+    # by default emit all attribute in a row
     def mapper_get_attr(self, _, line):
-        # yield each attribute, class value in the line
-        selected = jobconf_from_env('my.job.settings.select')
-        selected = selected.strip().split(',')
-        attrValues = line.split(',')
+        filters = jobconf_from_env('my.job.settings.select')
+        filters = filters.strip().split(',')
+        values = line.split(',')
         match = True
-        for i in range(len(selected)):
-            if selected[i] != '#' and selected[i] != attrValues[i]:
+        for (filter, value) in zip(filters, values):
+            if filter != '#' and filter != value:
                 match = False
                 break
         if match:
-            classVal = attrValues[-1]
-            # yield str("lines"), 1
-            yield str(classVal), 1
-            for idx, val in enumerate(attrValues[:-1]):
-                if selected[idx] == '#':
-                    yield (idx, val, classVal), 1
+            class_val = values[-1]
+            yield str(class_val), 1
 
-    def combiner_count_words(self, comb, counts):
+            for rownum, val in enumerate(values[:-1]):
+                yield (rownum, val, class_val), 1
+
+    def combiner_count(self, comb, counts):
         # optimization: sum the combinations we've seen so far
         yield (comb, sum(counts))
 
-    def reducer_count_words(self, comb, counts):
-        #	print(comb,type(comb))
-        if type(comb) in [str, unicode]:
+    def reducer_count(self, comb, counts):
+        # print(comb,type(comb))
+        if type(comb) in [str]:
             yield comb, sum(counts)
         else:
-            yield (comb[0], comb[1]), (comb[-1], sum(counts))
+            rownum, val, class_val = comb
+            yield (rownum, val), (class_val, sum(counts))
 
-    def reducer_find_max_word(self, word, word_count_pairs):
+    def reducer_find_max_p(self, word, class_count_pairs):
         from math import log
-        if type(word) in [str, unicode]:
-            yield word, sum(word_count_pairs)
+        if type(word) in [str]:
+            yield word, sum(class_count_pairs)
         else:
             mp = {}
             total = 0
-            ent = 0
-            for classVal, count in word_count_pairs:
-                if classVal in mp:
-                    mp[classVal] += count
+            entropy = 0
+            rownum, val = word
+            for class_val, count in class_count_pairs:
+                if class_val in mp:
+                    mp[class_val] += count
                 else:
-                    mp[classVal] = count
+                    mp[class_val] = count
                 total += count
-            max_p, classval = -1, None
-            for c in mp:
-                v = mp[c]
-                p = v/total
+            max_p, class_max_p = -1, None
+            for class_val, class_count in mp.pairs():
+                p = class_count/total
                 if p > max_p:
-                    max_p, classval = p, c
-                ent -= p*log(p, 2)
-            yield word[0], (word[1], total, ent, classval)
+                    max_p, class_max_p = p, class_val
+                entropy -= p*log(p, 2)
+            yield rownum, (val, total, entropy, class_max_p)
 
 
 if __name__ == '__main__':

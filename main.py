@@ -3,25 +3,26 @@ from math import log
 from MRAttributeSelect import MRMostUsedWord
 
 # Uncomment the necessary runner
-runner_name='inline'
+runner_name = 'inline'
 # runner_name='local'
 # runner_name='hadoop'
 
 # Set the details of the input dataset
-input_file='playtennis.txt'
+input_file = 'playtennis.txt'
 attribute_names = ["outlook", "temperature", "humimdity", "wind"]
 # input_file='tictactoe.txt'
 # attribute_names = ['0', '1', '2', '3', '4', '5', '6', '7', '8']
 
 
 # Set output file name
-op_file='rules.txt'
+op_file = 'rules.txt'
 
 
-default_args=','.join(['#' for _ in attribute_names])
+default_args = ','.join(['#' for _ in attribute_names])
+
 
 def mapred(args=default_args, depth=0, path=""):
-    args=args.split(',')
+    args = args.split(',')
     attrs = {}
     counts = {}
     total = 0
@@ -46,7 +47,7 @@ def mapred(args=default_args, depth=0, path=""):
                 attrs[key].append(value)
             else:
                 attrs[key] = [value]
-        
+
         # Calculate gain before splitting
         for classval in counts:
             p = counts[classval]/total
@@ -65,9 +66,9 @@ def mapred(args=default_args, depth=0, path=""):
         if depth == len(args)-1:
             for split, _, _, classVal in attrs[best_split[1]]:
                 with open(op_file, 'a') as f:
-                    f.write(path+"{} {}, {}\n".format(attribute_names[best_split[1]], split, classVal))
+                    f.write(
+                        path+"{} {}, {}\n".format(attribute_names[best_split[1]], split, classVal))
             return
-
 
         try:
             # Evaluate possible splits in best split
@@ -75,12 +76,14 @@ def mapred(args=default_args, depth=0, path=""):
                 # If the split is uniform, write to file and not recurse
                 if entropy <= 0.001:
                     with open(op_file, 'a') as f:
-                        f.write(path+"{} {}, {}\n".format(attribute_names[best_split[1]], split, classVal))
+                        f.write(
+                            path+"{} {}, {}\n".format(attribute_names[best_split[1]], split, classVal))
                     continue
 
                 args[best_split[1]] = split.encode('ascii')
-                
-                mapred(','.join(args), depth+1, path+"{} {}, ".format(attribute_names[best_split[1]], split))
+
+                mapred(','.join(args), depth+1, path +
+                       "{} {}, ".format(attribute_names[best_split[1]], split))
         except KeyError as err:
             print(depth)
             print(path)
@@ -89,7 +92,7 @@ def mapred(args=default_args, depth=0, path=""):
             print(best_split)
             print('--------------------------------')
             print('\n')
-            raise(err)
+            raise (err)
 
 
 # Clear the rules file
