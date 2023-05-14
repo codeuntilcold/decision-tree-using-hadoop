@@ -41,8 +41,11 @@ def mapred_at_node(filter=default_filter, depth=0, prev_rules=""):
     with mr_job.make_runner() as runner:
         runner.run()
 
+        mr_result = mr_job.parse_output(runner.cat_output())
+        # print("MR: ", dict(mr_result))
+
         # Store results of map reduce job in dict
-        for key, value in mr_job.parse_output(runner.cat_output()):
+        for key, value in mr_result:
             if is_class_label(key):
                 total_rows += value
                 class_count[key] = value
@@ -51,7 +54,8 @@ def mapred_at_node(filter=default_filter, depth=0, prev_rules=""):
             else:
                 attr_splits[key] = [value]
 
-        pp.pprint(attr_splits)
+        # Show split
+        # pp.pprint(attr_splits)
 
         # Calculate gain before splitting
         for _, count in class_count.items():
@@ -69,8 +73,10 @@ def mapred_at_node(filter=default_filter, depth=0, prev_rules=""):
             if gain > best_split_gain:
                 best_split_gain, best_split_attr = gain, attr
 
-        best_attr_name = attribute_names[best_split_attr]
-        split_info = attr_splits[best_split_attr]
+        best_attr_name = attribute_names[best_split_attr] \
+            if best_split_attr is not None else ""
+        split_info = attr_splits[best_split_attr] \
+            if best_split_attr in attr_splits else []
 
         # If this is the last split, write rule to file and return
         if depth == len(filter) - 1:
@@ -91,7 +97,7 @@ def mapred_at_node(filter=default_filter, depth=0, prev_rules=""):
                             f"{prev_rules}{best_attr_name} {split}, {cls}\n")
                     continue
 
-                filter[best_split_attr] = split.encode('ascii')
+                filter[best_split_attr] = split
 
                 mapred_at_node(
                     filter=','.join(filter),

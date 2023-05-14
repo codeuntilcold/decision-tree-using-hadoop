@@ -40,7 +40,7 @@ class MRFindBestSplit(MRJob):
 
     def reducer_count(self, comb, counts):
         # print(comb,type(comb))
-        if type(comb) in [str]:
+        if type(comb) in [str, bytes]:
             yield comb, sum(counts)
         else:
             rownum, val, class_val = comb
@@ -48,7 +48,7 @@ class MRFindBestSplit(MRJob):
 
     def reducer_find_max_p(self, word, class_count_pairs):
         from math import log
-        if type(word) in [str]:
+        if type(word) in [str, bytes]:
             yield word, sum(class_count_pairs)
         else:
             mp = {}
