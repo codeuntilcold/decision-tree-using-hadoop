@@ -6,7 +6,7 @@ from mrjob.step import MRStep
 from mrjob.compat import jobconf_from_env
 
 
-class MRMostUsedWord(MRJob):
+class MRFindBestSplit(MRJob):
 
     def steps(self):
         return [
@@ -31,8 +31,8 @@ class MRMostUsedWord(MRJob):
             class_val = values[-1]
             yield str(class_val), 1
 
-            for rownum, val in enumerate(values[:-1]):
-                yield (rownum, val, class_val), 1
+            for attr_index, val in enumerate(values[:-1]):
+                yield (attr_index, val, class_val), 1
 
     def combiner_count(self, comb, counts):
         # optimization: sum the combinations we've seen so far
@@ -54,7 +54,8 @@ class MRMostUsedWord(MRJob):
             mp = {}
             total = 0
             entropy = 0
-            rownum, val = word
+            attr_idx, val = word
+            # For a given attribute and attribute value
             for class_val, count in class_count_pairs:
                 if class_val in mp:
                     mp[class_val] += count
@@ -62,13 +63,13 @@ class MRMostUsedWord(MRJob):
                     mp[class_val] = count
                 total += count
             max_p, class_max_p = -1, None
-            for class_val, class_count in mp.pairs():
+            for class_val, class_count in mp.items():
                 p = class_count/total
                 if p > max_p:
                     max_p, class_max_p = p, class_val
                 entropy -= p*log(p, 2)
-            yield rownum, (val, total, entropy, class_max_p)
+            yield attr_idx, (val, total, entropy, class_max_p)
 
 
 if __name__ == '__main__':
-    MRMostUsedWord.run()
+    MRFindBestSplit.run()
