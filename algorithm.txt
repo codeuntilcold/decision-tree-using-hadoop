@@ -1,0 +1,48 @@
+For each row:
+val03, val10, ..., valn7, cls5
+
+-> 	"cls5", 1
+	-> "cls5", cls5_count
+	
+->	0, val03 @ cls5
+	-> 0 @ val03, cls5 @ cls5_count_for_val03_of_0
+					or @ cls5_less_than_val03 @ cls5_more_than_val03
+					
+	-> 0, val03 @ total_row_val0 @ entropy @ class_with_max_p
+	         or @ split_entropy
+	
+After MapReduce:
+	"cls0", count_cls0
+	"cls1", count_cls1
+	"cls2", count_cls2
+	...
+
+	0, val00 @ total_row_val00 @ entropy_00 @ 
+	0, val01 @ total_row_val01 @ entropy_01 @ class_with_max_p
+	1, val10 @ total_row_val10 @ entropy_10 @ class_with_max_p
+	...
+
+	5, val50 @ split_entropy50
+	5, val51 @ split_entropy51
+	5, val52 @ split_entropy52
+
+Then:
+	total = count_cls0 + ...
+	counts = { "cls0": count_cls0, ... }
+	attrs = { 0: [ ... ],
+			  1: [ ... ],...
+			  }
+	
+	before_split_gain = - sum(p * logp) with p = count_cls0 / total,...
+	for attr in attrs:
+		gain = before_split_gain - sum(p * entropy)
+		save best_split = best_gain, attr
+	
+	if on the last attribute:
+		write out the rule
+	
+	for split in attr:
+		if entropy is small: stop and write out the rule
+		else:
+			continue building tree by omitting the split -> this only works for branching into multiple branch and for categorical variables
+
