@@ -1,0 +1,10 @@
+25,Male,Low,No
+27,Female,Medium,No
+28,Female,Medium,No
+29,Male,Low,No
+31,Female,Low,No
+35,Female,Medium,Yes
+36,Female,Medium,Yes
+42,Male,High,Yes
+45,Male,High,Yes
+48,Male,High,Yes

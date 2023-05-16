@@ -1,0 +1,14 @@
+overcast,cool,normal,77,yes
+overcast,hot,high,26,yes
+overcast,hot,normal,34,yes
+overcast,mild,high,74,yes
+rain,cool,normal,27,yes
+rain,cool,normal,76,no
+rain,mild,high,30,yes
+rain,mild,high,72,no
+rain,mild,normal,21,yes
+sunny,cool,normal,24,yes
+sunny,hot,high,75,no
+sunny,hot,high,10,no
+sunny,mild,high,20,no
+sunny,mild,normal,68,yes
