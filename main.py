@@ -7,12 +7,22 @@ pp = pprint.PrettyPrinter(indent=2)
 
 # Uncomment the necessary runner
 runner_name = 'inline'
-# runner_name='local'
-# runner_name='hadoop'
+# runner_name = 'local'
+# runner_name = 'hadoop'
 
 # Set the details of the input dataset
-input_file = 'playtennis.txt'
-attribute_names = ["outlook", "temperature", "humimdity", "wind"]
+# input_file = 'playtennis.txt'
+# attribute_names = ["outlook", "temperature", "humimdity", "wind"]
+# attribute_types = ["discrete", "discrete", "discrete", "discrete"]
+
+input_file = 'playtennis_float.txt'
+attribute_names = ["outlook", "temperature", "humimdity", "wind_speed"]
+attribute_types = ["discrete", "discrete", "discrete", "continuous"]
+
+# input_file = 'gpt.txt'
+# attribute_names = ["age", "gender", "income"]
+# attribute_types = ["continuous", "discrete", "discrete"]
+
 # input_file='tictactoe.txt'
 # attribute_names = ['0', '1', '2', '3', '4', '5', '6', '7', '8']
 
@@ -33,8 +43,10 @@ def mapred_at_node(filter=default_filter, depth=0, prev_rules=""):
     before_split_gain = 0
     best_split_gain, best_split_attr = -1, None
 
-    mr_args = ['-r', runner_name, '--jobconf', 'my.job.settings.select=' +
-               ','.join(filter), input_file]
+    mr_args = ['-r', runner_name,
+               '--jobconf', 'my.job.settings.select=' + ','.join(filter),
+               '--jobconf', 'my.job.settings.attributetypes=' + ','.join(attribute_types),
+               input_file]
     mr_job = MRFindBestSplit(args=mr_args)
 
     # Run the job
@@ -64,45 +76,83 @@ def mapred_at_node(filter=default_filter, depth=0, prev_rules=""):
 
         # Calculate best split point from all possible splits
         for attr, splits in attr_splits.items():
-            gain = 0
-            for split in splits:
-                _, row, entropy, _ = split
-                gain += (row / total_rows) * entropy
-            gain = before_split_gain - gain
-            print(f"gain {gain} for attr {attr} at depth {depth}")
-            if gain > best_split_gain:
-                best_split_gain, best_split_attr = gain, attr
+            if attribute_types[attr] == 'continuous':
+                for split in splits:
+                    val, entropy, _ = split
+                    gain = before_split_gain - entropy
+                    print(f"gain {gain} for value {val} of attr {attr} at depth {depth}")
+                    if gain > best_split_gain:
+                        best_split_gain, best_split_attr = gain, attr
+                        best_split_continous = split
+            else:
+                gain = 0
+                for split in splits:
+                    _, row, entropy, _ = split
+                    gain += (row / total_rows) * entropy
+                gain = before_split_gain - gain
+                print(f"gain {gain} for attr {attr} at depth {depth}")
+                if gain > best_split_gain:
+                    best_split_gain, best_split_attr = gain, attr
 
         best_attr_name = attribute_names[best_split_attr] \
             if best_split_attr is not None else ""
         split_info = attr_splits[best_split_attr] \
             if best_split_attr in attr_splits else []
+        best_attr_is_continuous = attribute_types[best_split_attr] == 'continuous' \
+            if best_split_attr is not None else False
 
         # If this is the last split, write rule to file and return
         if depth == len(filter) - 1:
             print("At last splitting point")
-            for split, _, _, cls in split_info:
+            if best_attr_is_continuous:
+                # get the best split
+                val, _, cls = best_split_continous
                 with open(op_file, 'a') as f:
                     f.write("{}{} {}, {}\n".format(
-                        prev_rules, best_attr_name, split, cls))
+                        prev_rules, best_attr_name, val, cls))
+            else:
+                for split, _, _, cls in split_info:
+                    with open(op_file, 'a') as f:
+                        f.write("{}{} {}, {}\n".format(
+                            prev_rules, best_attr_name, split, cls))
             return
 
         try:
-            # Evaluate possible splits in best split
-            for split, _, entropy, cls in split_info:
-                # If the split is uniform, write to file and not recurse
-                if entropy <= 0.001:
+            if best_attr_is_continuous:
+                split_value, split_gain, cls = best_split_continous
+
+                if split_gain <= 0.001:
                     with open(op_file, 'a') as f:
                         f.write(
-                            f"{prev_rules}{best_attr_name} {split}, {cls}\n")
-                    continue
+                            f"{prev_rules}{best_attr_name} {split_value}, {cls}\n")
 
-                filter[best_split_attr] = split
-
+                filter[best_split_attr] = ">" + str(split_value)
                 mapred_at_node(
                     filter=','.join(filter),
                     depth=depth + 1,
-                    prev_rules=f"{prev_rules}{best_attr_name} {split}, ")
+                    prev_rules=f"{prev_rules}{best_attr_name} >={split_value}, ")
+
+                filter[best_split_attr] = "<" + str(split_value)
+                mapred_at_node(
+                    filter=','.join(filter),
+                    depth=depth + 1,
+                    prev_rules=f"{prev_rules}{best_attr_name} <{split_value}, ")
+            else:
+                # Evaluate possible splits in best split
+                for split, _, entropy, cls in split_info:
+                    # If the split is uniform, write to file and not recurse
+                    if entropy <= 0.001:
+                        with open(op_file, 'a') as f:
+                            f.write(
+                                f"{prev_rules}{best_attr_name} {split}, {cls}\n")
+                        continue
+
+                    filter[best_split_attr] = split
+
+                    mapred_at_node(
+                        filter=','.join(filter),
+                        depth=depth + 1,
+                        prev_rules=f"{prev_rules}{best_attr_name} {split}, ")
 
         except KeyError as err:
             print("depth: ", depth)
