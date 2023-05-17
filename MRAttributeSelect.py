@@ -48,13 +48,14 @@ class MRFindBestSplit(MRJob):
         match = True
         for (filter, value) in zip(filters, values):
             if filter != '#':
-                if filter[0] == '>' and float(value) < float(filter[1:]):
-                    match = False
-                    break
-                elif filter[0] == '<' and float(value) >= float(filter[1:]):
-                    match = False
-                    break
-                if filter != value:
+                if filter[0] in '><':
+                    if filter[0] == '>' and float(value) < float(filter[1:]):
+                        match = False
+                        break
+                    elif filter[0] == '<' and float(value) >= float(filter[1:]):
+                        match = False
+                        break
+                elif filter != value:
                     match = False
                     break
         if match:
@@ -140,7 +141,7 @@ class MRFindBestSplit(MRJob):
                 else:
                     class_val, less, more = class_count
                     if class_val not in mp:
-                        mp[class_val] = (less, more)
+                        mp[class_val] = [less, more]
                     else:
                         mp[class_val][0] += less
                         mp[class_val][1] += more
@@ -148,6 +149,7 @@ class MRFindBestSplit(MRJob):
                     more_count += more
 
             max_p, class_max_p = -1, None
+            max_p_more, class_max_p_more = -1, None
             for class_val, class_count in mp.items():
                 if not is_continuous:
                     p = class_count / total
@@ -158,18 +160,20 @@ class MRFindBestSplit(MRJob):
                     less, more = class_count
                     p_less = less / less_count
                     less_entropy -= 0 if p_less == 0 else p_less * log(p_less, 2)
+                    if p_less > max_p:
+                        max_p, class_max_p = p_less, class_val
+
                     p_more = more / more_count
                     more_entropy -= 0 if p_more == 0 else p_more * log(p_more, 2)
-                    p = less + more / (less_count + more_count)
-                    if p > max_p:
-                        max_p, class_max_p = p, class_val
+                    if p_more > max_p_more:
+                        max_p_more, class_max_p_more = p_more, class_val
 
             if not is_continuous:
                 yield attr_idx, (val, total, entropy, class_max_p)
             else:
                 split_entropy = \
                     (less_count * less_entropy + more_count * more_entropy) / (less_count + more_count)
-                yield attr_idx, (val, split_entropy, class_max_p)
+                yield attr_idx, (val, split_entropy, less_entropy, class_max_p, more_entropy, class_max_p_more)
 
 
 if __name__ == '__main__':

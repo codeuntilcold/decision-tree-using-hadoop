@@ -5,6 +5,8 @@ import pprint
 
 pp = pprint.PrettyPrinter(indent=2)
 
+MIN_ENTROPY = 0.001
+
 # Uncomment the necessary runner
 runner_name = 'inline'
 # runner_name = 'local'
@@ -15,16 +17,31 @@ runner_name = 'inline'
 # attribute_names = ["outlook", "temperature", "humimdity", "wind"]
 # attribute_types = ["discrete", "discrete", "discrete", "discrete"]
 
-input_file = 'playtennis_float.txt'
-attribute_names = ["outlook", "temperature", "humimdity", "wind_speed"]
-attribute_types = ["discrete", "discrete", "discrete", "continuous"]
+# input_file = 'playtennis_float.txt'
+# attribute_names = ["outlook", "temperature", "humimdity", "wind_speed"]
+# attribute_types = ["discrete", "discrete", "discrete", "continuous"]
 
 # input_file = 'gpt.txt'
 # attribute_names = ["age", "gender", "income"]
 # attribute_types = ["continuous", "discrete", "discrete"]
 
+# input_file = 'iris.txt'
+# attribute_names = ["sepal_length",
+#                    "sepal_width", "petal_length", "petal_width"]
+# attribute_types = ["continuous", "continuous", "continuous", "continuous"]
+
 # input_file='tictactoe.txt'
 # attribute_names = ['0', '1', '2', '3', '4', '5', '6', '7', '8']
+
+input_file = 'kdd/kddcup.data_10_percent_corrected_trimmed'
+attribute_names = []
+attribute_types = []
+with open('kdd/kddcup.names') as f:
+    lines = f.readlines()
+    for line in lines[1:]:
+        name, typ = line.split(": ")
+        attribute_names.append(name)
+        attribute_types.append(typ[:-2])
 
 # Set output file name
 op_file = 'rules.txt'
@@ -43,9 +60,12 @@ def mapred_at_node(filter=default_filter, depth=0, prev_rules=""):
     before_split_gain = 0
     best_split_gain, best_split_attr = -1, None
 
+    print('Current filter: ', filter)
+
     mr_args = ['-r', runner_name,
                '--jobconf', 'my.job.settings.select=' + ','.join(filter),
-               '--jobconf', 'my.job.settings.attributetypes=' + ','.join(attribute_types),
+               '--jobconf', 'my.job.settings.attributetypes=' +
+               ','.join(attribute_types),
                input_file]
     mr_job = MRFindBestSplit(args=mr_args)
 
@@ -78,10 +98,11 @@ def mapred_at_node(filter=default_filter, depth=0, prev_rules=""):
         for attr, splits in attr_splits.items():
             if attribute_types[attr] == 'continuous':
                 for split in splits:
-                    val, entropy, _ = split
+                    val, entropy, _, _, _, _ = split
                     gain = before_split_gain - entropy
-                    print(f"gain {gain} for value {val} of attr {attr} at depth {depth}")
                     if gain > best_split_gain:
+                        print(
+                            f"gain {gain} for value {val} of attr {attr} at depth {depth}")
                         best_split_gain, best_split_attr = gain, attr
                         best_split_continous = split
             else:
@@ -105,11 +126,12 @@ def mapred_at_node(filter=default_filter, depth=0, prev_rules=""):
         if depth == len(filter) - 1:
             print("At last splitting point")
             if best_attr_is_continuous:
-                # get the best split
-                val, _, cls = best_split_continous
+                val, _, _, less_cls, _, more_cls = best_split_continous
                 with open(op_file, 'a') as f:
-                    f.write("{}{} {}, {}\n".format(
-                        prev_rules, best_attr_name, val, cls))
+                    f.write("{}{} <{}, {}\n".format(
+                        prev_rules, best_attr_name, val, less_cls))
+                    f.write("{}{} >={}, {}\n".format(
+                        prev_rules, best_attr_name, val, more_cls))
             else:
                 for split, _, _, cls in split_info:
                     with open(op_file, 'a') as f:
@@ -119,29 +141,38 @@ def mapred_at_node(filter=default_filter, depth=0, prev_rules=""):
 
         try:
             if best_attr_is_continuous:
-                split_value, split_gain, cls = best_split_continous
+                split_value, _, less_ent, less_cls, \
+                    more_ent, more_cls = best_split_continous
 
-                if split_gain <= 0.001:
+                if less_ent <= MIN_ENTROPY:
                     with open(op_file, 'a') as f:
                         f.write(
-                            f"{prev_rules}{best_attr_name} {split_value}, {cls}\n")
+                            f"{prev_rules}{best_attr_name} <{split_value}, {less_cls}\n")
+                else:
+                    clone_filter = filter[:]
+                    clone_filter[best_split_attr] = "<" + str(split_value)
+                    mapred_at_node(
+                        filter=','.join(clone_filter),
+                        depth=depth + 1,
+                        prev_rules=f"{prev_rules}{best_attr_name} <{split_value}, ")
 
-                filter[best_split_attr] = ">" + str(split_value)
-                mapred_at_node(
-                    filter=','.join(filter),
-                    depth=depth + 1,
-                    prev_rules=f"{prev_rules}{best_attr_name} >={split_value}, ")
+                if more_ent <= MIN_ENTROPY:
+                    with open(op_file, 'a') as f:
+                        f.write(
+                            f"{prev_rules}{best_attr_name} >={split_value}, {more_cls}\n")
+                else:
+                    clone_filter = filter[:]
+                    clone_filter[best_split_attr] = ">" + str(split_value)
+                    mapred_at_node(
+                        filter=','.join(clone_filter),
+                        depth=depth + 1,
+                        prev_rules=f"{prev_rules}{best_attr_name} >={split_value}, ")
 
-                filter[best_split_attr] = "<" + str(split_value)
-                mapred_at_node(
-                    filter=','.join(filter),
-                    depth=depth + 1,
-                    prev_rules=f"{prev_rules}{best_attr_name} <{split_value}, ")
             else:
                 # Evaluate possible splits in best split
                 for split, _, entropy, cls in split_info:
                     # If the split is uniform, write to file and not recurse
-                    if entropy <= 0.001:
+                    if entropy <= MIN_ENTROPY:
                         with open(op_file, 'a') as f:
                             f.write(
                                 f"{prev_rules}{best_attr_name} {split}, {cls}\n")

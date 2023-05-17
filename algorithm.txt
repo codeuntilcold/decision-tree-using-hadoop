@@ -9,7 +9,7 @@ val03, val10, ..., valn7, cls5
 					or @ cls5_less_than_val03 @ cls5_more_than_val03
 					
 	-> 0, val03 @ total_row_val0 @ entropy @ class_with_max_p
-	         or @ split_entropy
+	         or @ split_entropy @ left_ent @ class_max_p_left @ right_ent @ class_max_p_right
 	
 After MapReduce:
 	"cls0", count_cls0
